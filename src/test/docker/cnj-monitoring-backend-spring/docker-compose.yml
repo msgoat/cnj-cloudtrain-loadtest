@@ -1,0 +1,55 @@
+# docker-compose.yml
+# ----------------------------------------------------------------------------
+# Composes Docker containers and volumes to a runnable Spring Boot application
+# ----------------------------------------------------------------------------
+#
+---
+services:
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: changeit
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: cloudtrain
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready", "--username", "postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  downstream:
+    image: docker.cloudtrain.aws.msgoat.eu/cloudtrain/cnj-monitoring-downstream:latest
+    environment:
+      DOCKER_JAVA_OPTS: "-Xms1g -Xmx1g"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: https://oidc.cloudtrain.aws.msgoat.eu/realms/cloudtrain/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://oidc.cloudtrain.aws.msgoat.eu/realms/cloudtrain
+
+  backend:
+    image: ${docker.image.name}:${project.version}
+    ports:
+      - "38080:8080"
+      - "38089:8089"
+    environment:
+      AGENT_JAVA_OPTS: "-javaagent:/home/spring/org.jacoco.agent.jar=output=tcpserver,address=*,port=8089"
+      DOCKER_JAVA_OPTS: "-Xms1g -Xmx1g"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: https://oidc.cloudtrain.aws.msgoat.eu/realms/cloudtrain/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://oidc.cloudtrain.aws.msgoat.eu/realms/cloudtrain
+      CLOUDTRAIN_SERVICES_DOWNSTREAM_URL: http://downstream:8080
+      POSTGRES_DB_HOST: postgres
+      POSTGRES_DB_PORT: 5432
+      POSTGRES_DB_NAME: cloudtrain
+      POSTGRES_DB_USER: postgres
+      POSTGRES_DB_PASSWORD: changeit
+    depends_on:
+      downstream:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+
+
+
+
+  
